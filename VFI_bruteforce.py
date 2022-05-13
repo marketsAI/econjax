@@ -2,7 +2,7 @@
 
 import jax
 import jax.numpy as jnp
-import quantecon as qe 
+import quantecon as qe
 import timeit
 import json
 import argparse
@@ -105,12 +105,14 @@ def get_T_tpu(model: dict):
 # BENCHMARKING
 
 
-def main(output_file=os.get_cwd()+"benchmark_output.json", use_TPU=True):
-
+def main(output_file=os.getcwd()+"/benchmark_output.json", use_TPU=False):
+    import jax
+    import jax.numpy as jnp
     if use_TPU:
         import jax.tools.colab_tpu
         jax.tools.colab_tpu.setup_tpu()
 
+    print(output_file)
     # Global Parameteres
     params = {
         "R": 1.1,
@@ -121,10 +123,11 @@ def main(output_file=os.get_cwd()+"benchmark_output.json", use_TPU=True):
     ρ = 0.9
     σ = 0.1
     n_devices = jax.local_device_count()
+    print(f"Number of devices: {n_devices}")
 
     # Loop over scale levels
     results_dict = {"Size of grid": [], "Manual Vectorization": [], "Automatic Vectorization": [], "TPU Parallelization": []}
-    for scale in [1, 8, 16, 32]:
+    for scale in [1, 2]:
         # grid for assets
         a_size = ap_size = 1024*scale
         a_grid = jnp.linspace(a_min, a_max, a_size)  # grid for a
@@ -170,22 +173,23 @@ def main(output_file=os.get_cwd()+"benchmark_output.json", use_TPU=True):
         T_autovec_jit = jax.jit(T_autovec).lower(v_init).compile()
 
         # run for 10 times and time it using timeit
-        if use_TPU:
-            a_partitions = jnp.reshape(model["indices"]["a"], (n_devices, a_size//n_devices))
-            T_tpu = get_T_tpu(model)
-            global T_tpu_jit
-            T_tpu_jit = jax.pmap(T_tpu, in_axes=(0,None)).lower(a_partitions, v_init).compile()
-        results_dict["Manual Vectorization"].append(timeit.timeit('T_manualvec_jit(v_init).block_until_ready()', globals=globals(), number=10)/10)
+        global a_partitions
+        a_partitions = jnp.reshape(model["indices"]["a"], (n_devices, a_size//n_devices))
+        T_tpu = get_T_tpu(model)
+        global T_tpu_jit
+        T_tpu_jit = jax.pmap(T_tpu, in_axes=(0,None)).lower(a_partitions, v_init).compile()
+        results_dict["Manual Vectorization"].append(timeit.timeit('T_manualvec_jit(v_init).block_until_ready()', globals=globals(), number=10) / 10)
         results_dict["Automatic Vectorization"].append(timeit.timeit('T_autovec_jit(v_init).block_until_ready()', globals=globals(), number=10)/10)
         results_dict["TPU Parallelization"].append(timeit.timeit('T_tpu_jit(a_partitions, v_init).block_until_ready()', globals=globals(), number=10)/10)
 
+        print(results_dict)
         with open(output_file, "w") as outfile:
             json.dump(results_dict, outfile)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Calculate the time required to run an update of the value function for different scales and methods.')
-    parser.add_argument('-o', '--output', help='Output file (json)', required=True, type=str) # Output file arg
+    parser.add_argument('-o', '--output', help='Output file (json)', required=False, type=str) # Output file arg
     args = vars(parser.parse_args())
-    outfile = args['output']
-    main(outfile)
+    # outfile = args['output']
+    main()
