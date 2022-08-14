@@ -127,7 +127,7 @@ def main(output_file: str = os.getcwd()+"/benchmark_output.json", useTPU: bool =
 
     # Loop over scale levels
     results_dict = {"Size of grid": [], "Manual Vectorization": [], "Automatic Vectorization": [], "TPU Parallelization": []}
-    for scale in [1, 2]:
+    for scale in [1, 2, 4, 8,16,32,64,128,256,512,1024]:
         # grid for assets
         a_size = ap_size = 1024*scale
         a_grid = jnp.linspace(a_min, a_max, a_size)  # grid for a
