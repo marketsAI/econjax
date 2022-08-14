@@ -5,7 +5,7 @@ import jax.numpy as jnp
 import quantecon as qe
 import timeit
 import json
-import argparse
+import typer
 from jax.config import config
 import os
 import warnings
@@ -105,9 +105,9 @@ def get_T_tpu(model: dict):
 # BENCHMARKING
 
 
-def main(output_file=os.getcwd()+"/benchmark_output.json", use_TPU=True):
+def main(output_file: str = os.getcwd()+"/benchmark_output.json", useTPU: bool = True):
 
-    if use_TPU:
+    if useTPU:
         import jax.tools.colab_tpu
         jax.tools.colab_tpu.setup_tpu()
 
@@ -187,8 +187,4 @@ def main(output_file=os.getcwd()+"/benchmark_output.json", use_TPU=True):
 
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Calculate the time required to run an update of the value function for different scales and methods.')
-    parser.add_argument('-o', '--output', help='Output file (json)', required=False, type=str) # Output file arg
-    args = vars(parser.parse_args())
-    # outfile = args['output']
-    main()
+    typer.run(main)
