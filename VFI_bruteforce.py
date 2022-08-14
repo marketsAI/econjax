@@ -106,8 +106,7 @@ def get_T_tpu(model: dict):
 
 
 def main(output_file=os.getcwd()+"/benchmark_output.json", use_TPU=True):
-    import jax
-    import jax.numpy as jnp
+
     if use_TPU:
         import jax.tools.colab_tpu
         jax.tools.colab_tpu.setup_tpu()
