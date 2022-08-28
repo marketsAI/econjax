@@ -5,7 +5,7 @@ import ml_collections
 def get_config():
     config = ml_collections.ConfigDict()
 
-    config.algo = 'awac'
+    config.algo = "awac"
 
     config.actor_optim_kwargs = ml_collections.ConfigDict()
     config.actor_optim_kwargs.learning_rate = 3e-4

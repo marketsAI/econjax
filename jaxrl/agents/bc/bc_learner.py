@@ -17,15 +17,16 @@ _mse_update_jit = jax.jit(actor.mse_update)
 
 
 class BCLearner(object):
-
-    def __init__(self,
-                 seed: int,
-                 observations: jnp.ndarray,
-                 actions: jnp.ndarray,
-                 actor_lr: float = 1e-3,
-                 num_steps: int = int(1e6),
-                 hidden_dims: Sequence[int] = (256, 256),
-                 distribution: str = 'det'):
+    def __init__(
+        self,
+        seed: int,
+        observations: jnp.ndarray,
+        actions: jnp.ndarray,
+        actor_lr: float = 1e-3,
+        num_steps: int = int(1e6),
+        hidden_dims: Sequence[int] = (256, 256),
+        distribution: str = "det",
+    ):
 
         self.distribution = distribution
 
@@ -33,49 +34,53 @@ class BCLearner(object):
         rng, actor_key = jax.random.split(rng)
 
         action_dim = actions.shape[-1]
-        if distribution == 'det':
-            actor_def = policies.MSEPolicy(hidden_dims,
-                                           action_dim,
-                                           dropout_rate=0.1)
-        elif distribution == 'mog':
-            actor_def = policies.NormalTanhMixturePolicy(hidden_dims,
-                                                         action_dim,
-                                                         dropout_rate=0.1)
-        elif distribution == 'made_mog':
+        if distribution == "det":
+            actor_def = policies.MSEPolicy(hidden_dims, action_dim, dropout_rate=0.1)
+        elif distribution == "mog":
+            actor_def = policies.NormalTanhMixturePolicy(
+                hidden_dims, action_dim, dropout_rate=0.1
+            )
+        elif distribution == "made_mog":
             actor_def = autoregressive_policy.MADETanhMixturePolicy(
-                hidden_dims, action_dim, dropout_rate=0.1)
-        elif distribution == 'made_d':
+                hidden_dims, action_dim, dropout_rate=0.1
+            )
+        elif distribution == "made_d":
             actor_def = autoregressive_policy.MADEDiscretizedPolicy(
-                hidden_dims, action_dim, dropout_rate=0.1)
+                hidden_dims, action_dim, dropout_rate=0.1
+            )
         else:
             raise NotImplemented
 
         schedule_fn = optax.cosine_decay_schedule(-actor_lr, num_steps)
-        optimiser = optax.chain(optax.scale_by_adam(),
-                                optax.scale_by_schedule(schedule_fn))
+        optimiser = optax.chain(
+            optax.scale_by_adam(), optax.scale_by_schedule(schedule_fn)
+        )
 
-        self.actor = Model.create(actor_def,
-                                  inputs=[actor_key, observations],
-                                  tx=optimiser)
+        self.actor = Model.create(
+            actor_def, inputs=[actor_key, observations], tx=optimiser
+        )
         self.rng = rng
 
-    def sample_actions(self,
-                       observations: np.ndarray,
-                       temperature: float = 1.0) -> jnp.ndarray:
-        self.rng, actions = policies.sample_actions(self.rng,
-                                                    self.actor.apply_fn,
-                                                    self.actor.params,
-                                                    observations, temperature,
-                                                    self.distribution)
+    def sample_actions(
+        self, observations: np.ndarray, temperature: float = 1.0
+    ) -> jnp.ndarray:
+        self.rng, actions = policies.sample_actions(
+            self.rng,
+            self.actor.apply_fn,
+            self.actor.params,
+            observations,
+            temperature,
+            self.distribution,
+        )
 
         actions = np.asarray(actions)
         return np.clip(actions, -1, 1)
 
     def update(self, batch: Batch) -> InfoDict:
-        if self.distribution == 'det':
-            self.rng, self.actor, info = _mse_update_jit(
-                self.actor, batch, self.rng)
+        if self.distribution == "det":
+            self.rng, self.actor, info = _mse_update_jit(self.actor, batch, self.rng)
         else:
             self.rng, self.actor, info = _log_prob_update_jit(
-                self.actor, batch, self.rng)
+                self.actor, batch, self.rng
+            )
         return info

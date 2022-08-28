@@ -5,7 +5,7 @@ def get_config():
     # https://arxiv.org/abs/2101.05982
     config = ml_collections.ConfigDict()
 
-    config.algo = 'redq'
+    config.algo = "redq"
 
     config.actor_lr = 3e-4
     config.critic_lr = 3e-4

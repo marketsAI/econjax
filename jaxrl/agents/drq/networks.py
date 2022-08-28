@@ -15,7 +15,7 @@ from jaxrl.networks.policies import NormalTanhPolicy
 class Encoder(nn.Module):
     features: Sequence[int] = (32, 32, 32, 32)
     strides: Sequence[int] = (2, 1, 1, 1)
-    padding: str = 'VALID'
+    padding: str = "VALID"
 
     @nn.compact
     def __call__(self, observations: jnp.ndarray) -> jnp.ndarray:
@@ -23,11 +23,13 @@ class Encoder(nn.Module):
 
         x = observations.astype(jnp.float32) / 255.0
         for features, stride in zip(self.features, self.strides):
-            x = nn.Conv(features,
-                        kernel_size=(3, 3),
-                        strides=(stride, stride),
-                        kernel_init=default_init(),
-                        padding=self.padding)(x)
+            x = nn.Conv(
+                features,
+                kernel_size=(3, 3),
+                strides=(stride, stride),
+                kernel_init=default_init(),
+                padding=self.padding,
+            )(x)
             x = nn.relu(x)
 
         if len(x.shape) == 4:
@@ -41,16 +43,16 @@ class DrQDoubleCritic(nn.Module):
     hidden_dims: Sequence[int]
     cnn_features: Sequence[int] = (32, 32, 32, 32)
     cnn_strides: Sequence[int] = (2, 1, 1, 1)
-    cnn_padding: str = 'VALID'
+    cnn_padding: str = "VALID"
     latent_dim: int = 50
 
     @nn.compact
-    def __call__(self, observations: jnp.ndarray,
-                 actions: jnp.ndarray) -> Tuple[jnp.ndarray, jnp.ndarray]:
-        x = Encoder(self.cnn_features,
-                    self.cnn_strides,
-                    self.cnn_padding,
-                    name='SharedEncoder')(observations)
+    def __call__(
+        self, observations: jnp.ndarray, actions: jnp.ndarray
+    ) -> Tuple[jnp.ndarray, jnp.ndarray]:
+        x = Encoder(
+            self.cnn_features, self.cnn_strides, self.cnn_padding, name="SharedEncoder"
+        )(observations)
 
         x = nn.Dense(self.latent_dim)(x)
         x = nn.LayerNorm()(x)
@@ -64,17 +66,16 @@ class DrQPolicy(nn.Module):
     action_dim: int
     cnn_features: Sequence[int] = (32, 32, 32, 32)
     cnn_strides: Sequence[int] = (2, 1, 1, 1)
-    cnn_padding: str = 'VALID'
+    cnn_padding: str = "VALID"
     latent_dim: int = 50
 
     @nn.compact
-    def __call__(self,
-                 observations: jnp.ndarray,
-                 temperature: float = 1.0) -> tfd.Distribution:
-        x = Encoder(self.cnn_features,
-                    self.cnn_strides,
-                    self.cnn_padding,
-                    name='SharedEncoder')(observations)
+    def __call__(
+        self, observations: jnp.ndarray, temperature: float = 1.0
+    ) -> tfd.Distribution:
+        x = Encoder(
+            self.cnn_features, self.cnn_strides, self.cnn_padding, name="SharedEncoder"
+        )(observations)
 
         # We do not update conv layers with policy gradients.
         x = jax.lax.stop_gradient(x)
@@ -83,5 +84,4 @@ class DrQPolicy(nn.Module):
         x = nn.LayerNorm()(x)
         x = nn.tanh(x)
 
-        return NormalTanhPolicy(self.hidden_dims, self.action_dim)(x,
-                                                                   temperature)
+        return NormalTanhPolicy(self.hidden_dims, self.action_dim)(x, temperature)

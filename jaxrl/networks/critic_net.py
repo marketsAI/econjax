@@ -22,11 +22,9 @@ class Critic(nn.Module):
     activations: Callable[[jnp.ndarray], jnp.ndarray] = nn.relu
 
     @nn.compact
-    def __call__(self, observations: jnp.ndarray,
-                 actions: jnp.ndarray) -> jnp.ndarray:
+    def __call__(self, observations: jnp.ndarray, actions: jnp.ndarray) -> jnp.ndarray:
         inputs = jnp.concatenate([observations, actions], -1)
-        critic = MLP((*self.hidden_dims, 1),
-                     activations=self.activations)(inputs)
+        critic = MLP((*self.hidden_dims, 1), activations=self.activations)(inputs)
         return jnp.squeeze(critic, -1)
 
 
@@ -38,12 +36,13 @@ class DoubleCritic(nn.Module):
     @nn.compact
     def __call__(self, states, actions):
 
-        VmapCritic = nn.vmap(Critic,
-                             variable_axes={'params': 0},
-                             split_rngs={'params': True},
-                             in_axes=None,
-                             out_axes=0,
-                             axis_size=self.num_qs)
-        qs = VmapCritic(self.hidden_dims,
-                        activations=self.activations)(states, actions)
+        VmapCritic = nn.vmap(
+            Critic,
+            variable_axes={"params": 0},
+            split_rngs={"params": True},
+            in_axes=None,
+            out_axes=0,
+            axis_size=self.num_qs,
+        )
+        qs = VmapCritic(self.hidden_dims, activations=self.activations)(states, actions)
         return qs

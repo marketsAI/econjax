@@ -4,7 +4,7 @@ import ml_collections
 def get_config():
     config = ml_collections.ConfigDict()
 
-    config.algo = 'drq'
+    config.algo = "drq"
 
     config.actor_lr = 3e-4
     config.critic_lr = 3e-4
@@ -14,7 +14,7 @@ def get_config():
 
     config.cnn_features = (32, 64, 128, 256)
     config.cnn_strides = (2, 2, 2, 2)
-    config.cnn_padding = 'SAME'
+    config.cnn_padding = "SAME"
     config.latent_dim = 50
 
     config.discount = 0.99

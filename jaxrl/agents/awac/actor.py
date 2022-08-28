@@ -8,14 +8,20 @@ from jaxrl.datasets import Batch
 from jaxrl.networks.common import InfoDict, Model, Params, PRNGKey
 
 
-def update(key: PRNGKey, actor: Model, critic: Model, batch: Batch,
-           num_samples: int, beta: float) -> Tuple[Model, InfoDict]:
+def update(
+    key: PRNGKey,
+    actor: Model,
+    critic: Model,
+    batch: Batch,
+    num_samples: int,
+    beta: float,
+) -> Tuple[Model, InfoDict]:
 
     v1, v2 = get_value(key, actor, critic, batch, num_samples)
     v = jnp.minimum(v1, v2)
 
     def actor_loss_fn(actor_params: Params) -> Tuple[jnp.ndarray, InfoDict]:
-        dist = actor.apply_fn({'params': actor_params}, batch.observations)
+        dist = actor.apply_fn({"params": actor_params}, batch.observations)
         lim = 1 - 1e-5
         actions = jnp.clip(batch.actions, -lim, lim)
         log_probs = dist.log_prob(actions)
@@ -30,7 +36,7 @@ def update(key: PRNGKey, actor: Model, critic: Model, batch: Batch,
         # sum() instead of mean(), because it should be multiplied by batch size.
         actor_loss = -(jax.nn.softmax(a / beta) * log_probs).sum()
 
-        return actor_loss, {'actor_loss': actor_loss}
+        return actor_loss, {"actor_loss": actor_loss}
 
     new_actor, info = actor.apply_gradient(actor_loss_fn)
 

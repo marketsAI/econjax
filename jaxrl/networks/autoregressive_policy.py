@@ -21,8 +21,9 @@ class MaskType(enum.Enum):
 
 
 @jax.util.cache()
-def get_mask(input_dim: int, output_dim: int, randvar_dim: int,
-             mask_type: MaskType) -> jnp.DeviceArray:
+def get_mask(
+    input_dim: int, output_dim: int, randvar_dim: int, mask_type: MaskType
+) -> jnp.DeviceArray:
     """
     Create a mask for MADE.
 
@@ -61,19 +62,22 @@ class MaskedDense(nn.Dense):
     @nn.compact
     def __call__(self, inputs: jnp.ndarray) -> jnp.ndarray:
         inputs = jnp.asarray(inputs, self.dtype)
-        kernel = self.param('kernel', self.kernel_init,
-                            (inputs.shape[-1], self.features))
+        kernel = self.param(
+            "kernel", self.kernel_init, (inputs.shape[-1], self.features)
+        )
         kernel = jnp.asarray(kernel, self.dtype)
 
         mask = get_mask(*kernel.shape, self.event_size, self.mask_type)
         kernel = kernel * mask
 
-        y = jax.lax.dot_general(inputs,
-                                kernel,
-                                (((inputs.ndim - 1, ), (0, )), ((), ())),
-                                precision=self.precision)
+        y = jax.lax.dot_general(
+            inputs,
+            kernel,
+            (((inputs.ndim - 1,), (0,)), ((), ())),
+            precision=self.precision,
+        )
         if self.use_bias:
-            bias = self.param('bias', self.bias_init, (self.features, ))
+            bias = self.param("bias", self.bias_init, (self.features,))
             bias = jnp.asarray(bias, self.dtype)
             y = y + bias
         return y
@@ -85,10 +89,9 @@ class MaskedMLP(nn.Module):
     dropout_rate: typing.Optional[float] = 0.1
 
     @nn.compact
-    def __call__(self,
-                 inputs: jnp.ndarray,
-                 conds: jnp.ndarray,
-                 training: bool = False) -> jnp.ndarray:
+    def __call__(
+        self, inputs: jnp.ndarray, conds: jnp.ndarray, training: bool = False
+    ) -> jnp.ndarray:
         x = inputs
         x_conds = conds
         for i, feat in enumerate(self.features):
@@ -98,9 +101,7 @@ class MaskedMLP(nn.Module):
                 mask_type = MaskType.hidden
             else:
                 mask_type = MaskType.output
-            x = MaskedDense(feat,
-                            event_size=inputs.shape[-1],
-                            mask_type=mask_type)(x)
+            x = MaskedDense(feat, event_size=inputs.shape[-1], mask_type=mask_type)(x)
             x_conds = nn.Dense(feat)(x_conds)
             x = x + x_conds
             if i + 1 < len(self.features) or self.activate_final:
@@ -108,26 +109,31 @@ class MaskedMLP(nn.Module):
                 x_conds = nn.relu(x_conds)
                 if self.dropout_rate is not None:
                     if training:
-                        rng = self.make_rng('dropout')
+                        rng = self.make_rng("dropout")
                     else:
                         rng = None
                     x_conds = nn.Dropout(rate=self.dropout_rate)(
-                        x_conds, deterministic=not training, rng=rng)
+                        x_conds, deterministic=not training, rng=rng
+                    )
                     x = nn.Dropout(rate=self.dropout_rate)(
-                        x, deterministic=not training, rng=rng)
+                        x, deterministic=not training, rng=rng
+                    )
         return x
 
 
 class Autoregressive(tfd.Distribution):
-
-    def __init__(self, distr_fn: typing.Callable[[jnp.ndarray],
-                                                 tfd.Distribution],
-                 batch_shape: typing.Tuple[int], event_dim: int):
+    def __init__(
+        self,
+        distr_fn: typing.Callable[[jnp.ndarray], tfd.Distribution],
+        batch_shape: typing.Tuple[int],
+        event_dim: int,
+    ):
         super().__init__(
             dtype=jnp.float32,
             reparameterization_type=reparameterization.FULLY_REPARAMETERIZED,
             validate_args=False,
-            allow_nan_stats=True)
+            allow_nan_stats=True,
+        )
 
         self._distr_fn = distr_fn
         self._event_dim = event_dim
@@ -139,15 +145,15 @@ class Autoregressive(tfd.Distribution):
     def _sample_n(self, n: int, seed: jnp.ndarray) -> jnp.ndarray:
         keys = jax.random.split(seed, self._event_dim)
 
-        samples = jnp.zeros((n, *self._batch_shape(), self._event_dim),
-                            jnp.float32)
+        samples = jnp.zeros((n, *self._batch_shape(), self._event_dim), jnp.float32)
 
         # TODO: Consider rewriting it with nn.scan.
         for i in range(self._event_dim):
             dist = self._distr_fn(samples)
             dim_samples = dist.sample(seed=keys[i])
-            samples = jax.ops.index_update(samples, jax.ops.index[..., i],
-                                           dim_samples[..., i])
+            samples = jax.ops.index_update(
+                samples, jax.ops.index[..., i], dim_samples[..., i]
+            )
 
         return samples
 
@@ -166,20 +172,22 @@ class MADETanhMixturePolicy(nn.Module):
     dropout_rate: typing.Optional[float] = None
 
     @nn.compact
-    def __call__(self,
-                 states: jnp.ndarray,
-                 temperature: float = 1.0,
-                 training: bool = False) -> tfd.Distribution:
-        is_initializing = not self.has_variable('params', 'means')
+    def __call__(
+        self, states: jnp.ndarray, temperature: float = 1.0, training: bool = False
+    ) -> tfd.Distribution:
+        is_initializing = not self.has_variable("params", "means")
         masked_mlp = MaskedMLP(
             (*self.features, 3 * self.num_components * self.action_dim),
-            dropout_rate=self.dropout_rate)
-        means_init = self.param('means', nn.initializers.normal(1.0),
-                                (self.num_components * self.action_dim, ))
+            dropout_rate=self.dropout_rate,
+        )
+        means_init = self.param(
+            "means",
+            nn.initializers.normal(1.0),
+            (self.num_components * self.action_dim,),
+        )
 
         if is_initializing:
-            actions = jnp.zeros((*states.shape[:-1], self.action_dim),
-                                states.dtype)
+            actions = jnp.zeros((*states.shape[:-1], self.action_dim), states.dtype)
             masked_mlp(actions, states)
 
         def distr_fn(actions: jnp.ndarray) -> tfd.Distribution:
@@ -190,8 +198,7 @@ class MADETanhMixturePolicy(nn.Module):
             log_scales = jnp.clip(log_scales, LOG_STD_MIN, LOG_STD_MAX)
 
             def reshape(x):
-                new_shape = (*x.shape[:-1], self.num_components,
-                             actions.shape[-1])
+                new_shape = (*x.shape[:-1], self.num_components, actions.shape[-1])
                 x = jnp.reshape(x, new_shape)
                 return jnp.swapaxes(x, -1, -2)
 
@@ -199,8 +206,7 @@ class MADETanhMixturePolicy(nn.Module):
             log_scales = reshape(log_scales)
             logits = reshape(logits)
 
-            dist = tfd.Normal(loc=means,
-                              scale=jnp.exp(log_scales) * temperature)
+            dist = tfd.Normal(loc=means, scale=jnp.exp(log_scales) * temperature)
 
             dist = tfd.MixtureSameFamily(tfd.Categorical(logits=logits), dist)
 
@@ -211,7 +217,6 @@ class MADETanhMixturePolicy(nn.Module):
 
 
 class MyUniform(tfd.Uniform):
-
     def _prob(self, inputs):
         return super()._prob(inputs) + 1e-8
 
@@ -223,26 +228,24 @@ class MADEDiscretizedPolicy(nn.Module):
     dropout_rate: typing.Optional[float] = None
 
     @nn.compact
-    def __call__(self,
-                 states: jnp.ndarray,
-                 temperature: float = 1.0,
-                 training: bool = False) -> tfd.Distribution:
-        is_initializing = not self.has_variable('params', 'means')
+    def __call__(
+        self, states: jnp.ndarray, temperature: float = 1.0, training: bool = False
+    ) -> tfd.Distribution:
+        is_initializing = not self.has_variable("params", "means")
         masked_mlp = MaskedMLP(
             (*self.features, self.num_components * self.action_dim),
-            dropout_rate=self.dropout_rate)
+            dropout_rate=self.dropout_rate,
+        )
 
         if is_initializing:
-            actions = jnp.zeros((*states.shape[:-1], self.action_dim),
-                                states.dtype)
+            actions = jnp.zeros((*states.shape[:-1], self.action_dim), states.dtype)
             masked_mlp(actions, states)
 
         def distr_fn(actions: jnp.ndarray) -> tfd.Distribution:
             logits = masked_mlp(actions, states, training=training)
 
             def reshape(x):
-                new_shape = (*x.shape[:-1], self.num_components,
-                             actions.shape[-1])
+                new_shape = (*x.shape[:-1], self.num_components, actions.shape[-1])
                 x = jnp.reshape(x, new_shape)
                 return jnp.swapaxes(x, -1, -2)
 

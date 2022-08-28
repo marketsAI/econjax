@@ -7,15 +7,14 @@ from jaxrl.datasets import Batch
 from jaxrl.networks.common import Model, PRNGKey
 
 
-def get_value(key: PRNGKey, actor: Model, critic: Model, batch: Batch,
-              num_samples: int) -> Tuple[jnp.ndarray, jnp.ndarray]:
+def get_value(
+    key: PRNGKey, actor: Model, critic: Model, batch: Batch, num_samples: int
+) -> Tuple[jnp.ndarray, jnp.ndarray]:
     dist = actor(batch.observations)
 
     policy_actions = dist.sample(seed=key, sample_shape=[num_samples])
 
-    n_observations = jnp.repeat(batch.observations[jnp.newaxis],
-                                num_samples,
-                                axis=0)
+    n_observations = jnp.repeat(batch.observations[jnp.newaxis], num_samples, axis=0)
     q_pi1, q_pi2 = critic(n_observations, policy_actions)
 
     def get_v(q):
